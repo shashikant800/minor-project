@@ -447,16 +447,27 @@ def _to_tensor(batch, field_dtype):
         返回的batch就是原来的数据，且flag为False
     """
     try:
-        # Handle numpy scalar types (e.g. numpy.int64) which torch.as_tensor()
-        # cannot always infer a dtype for in some PyTorch versions.
+        # Normalize NumPy scalar and object-dtype containers so that torch.as_tensor()
+        # can reliably infer a dtype.
         if isinstance(batch, np.generic):
+            # Single NumPy scalar, e.g. numpy.int64(5)
             batch = batch.item()
+        elif isinstance(batch, (list, tuple)):
+            # Containers with NumPy scalars inside
+            if any(isinstance(x, np.generic) for x in batch):
+                batch = [x.item() if isinstance(x, np.generic) else x for x in batch]
+        elif isinstance(batch, np.ndarray) and batch.dtype == np.object_:
+            # Object arrays that actually contain numeric NumPy scalars
+            try:
+                batch = batch.astype(np.int64)
+            except Exception:
+                # If conversion fails, leave as-is and let the fallback path handle it
+                pass
 
         if field_dtype is not None and isinstance(field_dtype, type) \
                 and issubclass(field_dtype, Number) \
                 and not isinstance(batch, torch.Tensor):
-            # For numeric fields, explicitly convert to tensor. For scalars we
-            # already converted via .item() above.
+            # For numeric fields, explicitly convert to tensor after normalizing
             new_batch = torch.as_tensor(batch)
             flag = True
         else:
