@@ -37,9 +37,23 @@ Accelerate data fetching.
 class DataPrefetcher:
     # https://github.com/NVIDIA/apex/blob/f5cd5ae937f168c763985f627bbf850648ea5f3f/examples/imagenet/main_amp.py#L256
     def __init__(self, loader, device, init=False):
-        self.loader = LoaderWrapper(loader,device)
+        self.loader = LoaderWrapper(loader, device)
         self.iter = None
-        self.stream = torch.cuda.Stream()
+
+        # Only use CUDA streams when we are actually on a CUDA device and CUDA works.
+        self.use_cuda = (isinstance(device, torch.device) and device.type == "cuda") or (
+            isinstance(device, str) and device.startswith("cuda")
+        )
+        if self.use_cuda and torch.cuda.is_available():
+            try:
+                self.stream = torch.cuda.Stream()
+            except Exception:
+                # Fallback to non-CUDA prefetching (CPU only) if stream creation fails
+                self.use_cuda = False
+                self.stream = None
+        else:
+            self.use_cuda = False
+            self.stream = None
 
         if init:
             self.iter = iter(self.loader)
@@ -54,11 +68,19 @@ class DataPrefetcher:
         except StopIteration:
             self.next_batch = None
             return
-        with torch.cuda.stream(self.stream):
-            self.next_batch = [i.cuda(non_blocking=True) if isinstance(i, torch.Tensor) else i for i in self.next_batch]
+        if self.use_cuda and self.stream is not None:
+            with torch.cuda.stream(self.stream):
+                self.next_batch = [
+                    i.cuda(non_blocking=True) if isinstance(i, torch.Tensor) else i
+                    for i in self.next_batch
+                ]
+        else:
+            # CPU-only fallback: just pass the batch through
+            pass
 
     def next(self):
-        torch.cuda.current_stream().wait_stream(self.stream)
+        if self.use_cuda and self.stream is not None:
+            torch.cuda.current_stream().wait_stream(self.stream)
         batch = self.next_batch
         self.preload()
         return batch

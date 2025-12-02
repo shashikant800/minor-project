@@ -26,7 +26,18 @@ if __name__ == '__main__':
 
     print(f"Set the device with ID {args.device} visible")
     os.environ['CUDA_VISIBLE_DEVICES'] = args.device
-    args.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+    # Robust device selection: if CUDA is misconfigured or unusable, fall back to CPU
+    if torch.cuda.is_available():
+        try:
+            # Try a trivial CUDA operation to verify the runtime/driver actually works
+            _ = torch.tensor([0.0]).to('cuda')
+            args.device = 'cuda'
+        except Exception:
+            print("CUDA appears to be unavailable or misconfigured, falling back to CPU.")
+            args.device = 'cpu'
+    else:
+        args.device = 'cpu'
 
 
     config_path = Path(args.conf  if args.conf else args2.load_from_dir + "/config.yaml")
