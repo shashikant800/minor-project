@@ -39,12 +39,16 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         command = int(input('Enter 0 to delete the repo, and enter anything else to save.'))
         if command == 0:
-            shutil.rmtree(args.save_dir)
+            # Only try to remove the log directory if it actually exists
+            if os.path.exists(args.save_dir):
+                shutil.rmtree(args.save_dir)
             print("You have successfully delete the created log directory.")
         else:
             print("log directory have been saved.")
     except Exception:
         traceback.print_exc()
-        shutil.rmtree(args.save_dir)
+        # Only try to remove the log directory if it actually exists
+        if os.path.exists(args.save_dir):
+            shutil.rmtree(args.save_dir)
         print("log directory have been deleted.")
 
