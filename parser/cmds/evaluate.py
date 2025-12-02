@@ -32,7 +32,10 @@ class Evaluate(CMD):
             metric_f1, likelihood = self.evaluate(test_loader_autodevice, eval_dep=eval_dep, decode_type=decode_type)
         else:
             metric_f1, metric_uas, likelihood = self.evaluate(test_loader_autodevice, eval_dep=eval_dep, decode_type=decode_type)
-            print(metric_uas)
+            if metric_uas is not None:
+                print(metric_uas)
+            else:
+                print("UAS metric not available (model does not support dependency evaluation)")
         print(metric_f1)
         print(likelihood)
 
