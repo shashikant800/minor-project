@@ -447,14 +447,22 @@ def _to_tensor(batch, field_dtype):
         返回的batch就是原来的数据，且flag为False
     """
     try:
-        if field_dtype is not None and isinstance(field_dtype, type)\
+        # Handle numpy scalar types (e.g. numpy.int64) which torch.as_tensor()
+        # cannot always infer a dtype for in some PyTorch versions.
+        if isinstance(batch, np.generic):
+            batch = batch.item()
+
+        if field_dtype is not None and isinstance(field_dtype, type) \
                 and issubclass(field_dtype, Number) \
                 and not isinstance(batch, torch.Tensor):
+            # For numeric fields, explicitly convert to tensor. For scalars we
+            # already converted via .item() above.
             new_batch = torch.as_tensor(batch)
             flag = True
         else:
             new_batch = batch
             flag = False
+
         if torch.is_tensor(new_batch):
             if 'float' in new_batch.dtype.__repr__():
                 new_batch = new_batch.float()
@@ -462,4 +470,5 @@ def _to_tensor(batch, field_dtype):
                 new_batch = new_batch.long()
         return new_batch, flag
     except Exception as e:
+        # Re-raise so that upstream error handling and logging still work.
         raise e
