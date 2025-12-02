@@ -28,7 +28,7 @@ model:
 
 train:
   batch_size: 16
-  max_epoch: 10
+  max_epoch: 2
   max_len: 400
 
   #whether to use curriculum learning stragegy.
