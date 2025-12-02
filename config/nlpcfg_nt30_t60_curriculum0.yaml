@@ -3,9 +3,9 @@ save_dir : 'log'
 
 
 data:
-  train_file: 'data/ptb-train-lpcfg.pickle'
-  val_file: 'data/ptb-val-lpcfg.pickle'
-  test_file: 'data/ptb-test-lpcfg.pickle'
+  train_file: '/content/ptb-train-lpcfg.pickle'
+  val_file: '/content/ptb-val-lpcfg.pickle'
+  test_file: '/content/ptb-test-lpcfg.pickle'
   vocab_type: 'max_size'
   vocab_size: 10000
   min_freq: 2
