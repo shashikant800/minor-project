@@ -446,46 +446,41 @@ def _to_tensor(batch, field_dtype):
     :return: batch, flag. 如果传入的数据支持转为tensor，返回的batch就是tensor，且flag为True；如果传入的数据不支持转为tensor，
         返回的batch就是原来的数据，且flag为False
     """
-    # Normalize NumPy scalar and object-dtype containers so that torch.as_tensor()
-    # can reliably infer a dtype.
-    if isinstance(batch, np.generic):
-        # Single NumPy scalar, e.g. numpy.int64(5)
-        batch = batch.item()
-    elif isinstance(batch, (list, tuple)):
-        # Containers with NumPy scalars inside
-        if any(isinstance(x, np.generic) for x in batch):
-            batch = [x.item() if isinstance(x, np.generic) else x for x in batch]
-    elif isinstance(batch, np.ndarray) and batch.dtype == np.object_:
-        # Object arrays that actually contain numeric NumPy scalars
-        try:
-            batch = batch.astype(np.int64)
-        except Exception:
-            # If conversion fails, leave as-is and let the fallback path handle it
-            pass
+    # If it's already a tensor, just normalize dtype if needed.
+    if torch.is_tensor(batch):
+        new_batch = batch
+        flag = False
+    else:
+        new_batch = batch
+        flag = False
 
-    new_batch = batch
-    flag = False
+        # Only attempt tensorization for numeric fields.
+        if field_dtype is not None and isinstance(field_dtype, type) \
+                and issubclass(field_dtype, Number):
 
-    if field_dtype is not None and isinstance(field_dtype, type) \
-            and issubclass(field_dtype, Number) \
-            and not isinstance(batch, torch.Tensor):
-        # For numeric fields, explicitly convert to tensor after normalizing.
-        # Use a robust conversion that always specifies dtype for integer-like data.
-        try:
-            new_batch = torch.as_tensor(batch)
-        except RuntimeError as e:
-            # Fallback path for cases like "Could not infer dtype of numpy.int64"
-            # where dtype inference fails: go via NumPy with an explicit dtype.
-            if isinstance(batch, np.ndarray):
-                arr = batch
-            else:
-                arr = np.array(batch)
-            # If still object, try to coerce to int64
-            if arr.dtype == np.object_:
-                arr = arr.astype(np.int64)
-            # Prefer integer dtype for Number fields; if that fails, let it raise.
-            new_batch = torch.from_numpy(arr.astype(np.int64))
-        flag = True
+            # Normalize various NumPy containers to pure Python so that we do not
+            # rely on torch's NumPy bridge (which may be disabled).
+            if isinstance(batch, np.generic):
+                # Single NumPy scalar, e.g. numpy.int64(5)
+                batch = batch.item()
+            elif isinstance(batch, np.ndarray):
+                # Convert arrays to nested Python lists
+                batch = batch.tolist()
+            elif isinstance(batch, (list, tuple)):
+                # Containers with NumPy scalars inside
+                batch = [
+                    x.item() if isinstance(x, np.generic) else x
+                    for x in batch
+                ]
+
+            # Now batch should be composed of plain Python numbers.
+            try:
+                new_batch = torch.tensor(batch)
+                flag = True
+            except Exception:
+                # If tensor creation still fails, keep original batch and flag=False
+                new_batch = batch
+                flag = False
 
     if torch.is_tensor(new_batch):
         if 'float' in new_batch.dtype.__repr__():
